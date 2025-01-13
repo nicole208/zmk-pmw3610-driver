@@ -585,7 +585,7 @@ static int pmw3610_report_data(const struct device *dev) {
         LOG_WRN("Device is not initialized yet");
         return -EBUSY;
     }
-    
+
     int32_t dividor;
     enum pixart_input_mode input_mode = get_input_mode_for_current_layer(dev);
     bool input_mode_changed = data->curr_mode != input_mode;
@@ -612,7 +612,13 @@ static int pmw3610_report_data(const struct device *dev) {
 
     data->curr_mode = input_mode;
 
-
+#if AUTOMOUSE_LAYER > 0
+    if (input_mode == MOVE &&
+            (automouse_triggered || zmk_keymap_highest_layer_active() != AUTOMOUSE_LAYER)
+    ) {
+        activate_automouse_layer();
+    }
+#endif
 
     int err = motion_burst_read(dev, buf, sizeof(buf));
     if (err) {
@@ -623,6 +629,31 @@ static int pmw3610_report_data(const struct device *dev) {
         TOINT16((buf[PMW3610_X_L_POS] + ((buf[PMW3610_XY_H_POS] & 0xF0) << 4)), 12) / dividor;
     int16_t raw_y =
         TOINT16((buf[PMW3610_Y_L_POS] + ((buf[PMW3610_XY_H_POS] & 0x0F) << 8)), 12) / dividor;
+    
+#ifdef CONFIG_PMW3610_ADJUSTABLE_MOUSESPEED
+    int16_t movement_size = abs(raw_x) + abs(raw_y);
+
+    float speed_multiplier = 1.0; //速度の倍率
+    if (movement_size > 60) {
+        speed_multiplier = 3.0;
+    }else if (movement_size > 30) {
+        speed_multiplier = 1.5;
+    }else if (movement_size > 5) {
+        speed_multiplier = 1.0;
+    }else if (movement_size > 4) {
+        speed_multiplier = 0.9;
+    }else if (movement_size > 3) {
+        speed_multiplier = 0.7;
+    }else if (movement_size > 2) {
+        speed_multiplier = 0.5;
+    }else if (movement_size > 1) {
+        speed_multiplier = 0.1;
+    }
+
+    raw_x = raw_x * speed_multiplier;
+    raw_y = raw_y * speed_multiplier;
+
+#endif
 
     int16_t x;
     int16_t y;
@@ -648,14 +679,6 @@ static int pmw3610_report_data(const struct device *dev) {
     if (IS_ENABLED(CONFIG_PMW3610_INVERT_Y)) {
         y = -y;
     }
-
-    #if AUTOMOUSE_LAYER > 0
-    if (input_mode == MOVE && (abs(x)+abs(y) > 2.0) &&
-            (automouse_triggered || zmk_keymap_highest_layer_active() != AUTOMOUSE_LAYER)
-    ) {
-        activate_automouse_layer();
-    }
-#endif
 
 #ifdef CONFIG_PMW3610_SMART_ALGORITHM
     int16_t shutter =
