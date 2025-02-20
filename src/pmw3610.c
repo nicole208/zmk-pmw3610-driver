@@ -633,7 +633,7 @@ static int pmw3610_report_data(const struct device *dev) {
 #ifdef CONFIG_PMW3610_ADJUSTABLE_MOUSESPEED
     int16_t movement_size = abs(raw_x) + abs(raw_y);
 
-    float speed_multiplier = 1.5; //速度の倍率
+    float speed_multiplier = 1.25; //速度の倍率
     if (movement_size > 60) {
         speed_multiplier = 3.0;
     }else if (movement_size > 30) {
